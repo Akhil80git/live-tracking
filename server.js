@@ -2,60 +2,46 @@ const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 
-dotenv.config(); // Load .env
-
+dotenv.config();
 const app = express();
 
 app.use(express.json());
-app.use(express.static("public")); // Public folder serve
+app.use(express.static("public")); // frontend serve
 
-// ⭐ Correct MongoDB Connection
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB Connected"))
   .catch((err) => console.log("DB Error:", err));
 
-// ⭐ Schema: single document for live location update
+// Schema
 const LocationSchema = new mongoose.Schema({
-  name: { type: String, unique: true }, // Always "current"
   latitude: String,
   longitude: String,
-  time: String // IST time string
+  time: String
 });
 
 const Location = mongoose.model("Location", LocationSchema);
 
-// ⭐ API: Save & Update Live Location
+// Save Location API
 app.post("/save-location", async (req, res) => {
   try {
-    // India IST Time
     const indiaTime = new Date().toLocaleString("en-IN", {
       timeZone: "Asia/Kolkata",
       hour12: true
     });
 
-    console.log("API HIT (IST):", indiaTime, "Body:", req.body);
-
-    const filter = { name: "current" };
-    const update = {
-      $set: {
-        latitude: req.body.latitude,
-        longitude: req.body.longitude,
-        time: indiaTime
-      }
-    };
-
-    // If document not found -> create; found -> update
-    await Location.updateOne(filter, update, { upsert: true });
+    await Location.create({
+      latitude: req.body.latitude,
+      longitude: req.body.longitude,
+      time: indiaTime
+    });
 
     res.json({ success: true });
   } catch (err) {
-    console.log("DB Save Error:", err);
     res.json({ success: false, error: err.message });
   }
 });
 
-// ⭐ Start Server
-app.listen(5000, () =>
-  console.log("Server running on http://localhost:5000")
-);
+// Render ke liye PORT fix
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log("Server running on port", PORT));
