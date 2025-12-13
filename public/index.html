@@ -1,76 +1,74 @@
-const express = require("express");
-const mongoose = require("mongoose");
-const dotenv = require("dotenv");
-const path = require("path");
-
-dotenv.config();
-const app = express();
-
-// Middleware
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
-
-// MongoDB connection
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected (livetrack)"))
-  .catch((err) => console.log("❌ DB Error:", err));
-
-// Schema
-const LocationSchema = new mongoose.Schema({
-  latitude: Number,
-  longitude: Number,
-  time: String
-});
-
-// Model → collection name = location
-const Location = mongoose.model("Location", LocationSchema, "location");
-
-// API to save location
-app.post("/save-location", async (req, res) => {
-  try {
-    const { latitude, longitude } = req.body;
-
-    if (latitude === undefined || longitude === undefined) {
-      return res.status(400).json({
-        success: false,
-        error: "Latitude & Longitude required"
-      });
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Live Location</title>
+  <style>
+    body {
+      font-family: Arial;
+      text-align: center;
+      margin-top: 100px;
+      background: #f4f4f4;
     }
+    button {
+      padding: 15px 30px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      background: green;
+      color: white;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
 
-    const indiaTime = new Date().toLocaleString("en-IN", {
-      timeZone: "Asia/Kolkata",
-      hour12: true
-    });
+  <h1>📍 Live Location Sender</h1>
+  <button onclick="startTracking()">Start Tracking</button>
+  <p id="status"></p>
 
-    await Location.create({
-      latitude,
-      longitude,
-      time: indiaTime
-    });
+<script>
+let intervalId;
 
-    console.log("📍 Location saved");
+function startTracking() {
+  sendLocation();
+  intervalId = setInterval(sendLocation, 60000); // every 1 minute
+}
 
-    res.json({
-      success: true,
-      message: "Location saved"
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({
-      success: false,
-      error: err.message
-    });
+function sendLocation() {
+  const status = document.getElementById("status");
+
+  if (!navigator.geany {
+    status.innerText = "Geolocation not supported";
+    return;
   }
-});
 
-// Home
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const data = {
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude
+      };
 
-// Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
-});
+      try {
+        const res = await fetch("/save-location", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data)
+        });
+
+        const result = await res.json();
+        status.innerText = "✅ Location sent at " + new Date().toLocaleTimeString();
+      } catch (e) {
+        status.innerText = "❌ Server error";
+      }
+    },
+    () => {
+      status.innerText = "❌ Location permission denied";
+    }
+  );
+}
+</script>
+
+</body>
+</html>
