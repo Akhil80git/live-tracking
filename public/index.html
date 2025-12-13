@@ -1,34 +1,56 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Location Sender</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Location Sender</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin-top: 100px; background: #f0f0f0; }
+    button { padding: 15px 30px; font-size: 18px; background: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; }
+    button:hover { background: #45a049; }
+  </style>
 </head>
 <body>
+  <h1>Send My Current Location</h1>
+  <button onclick="sendLocation()">📍 Send Location</button>
+  <p id="status"></p>
 
-<button onclick="sendLocation()">Send My Location</button>
+  <script>
+    async function sendLocation() {
+      const status = document.getElementById("status");
+      if (!navigator.geolocation) {
+        status.innerHTML = "Geolocation is not supported by your browser";
+        return;
+      }
+      status.innerHTML = "Getting location...";
 
-<script>
-  function sendLocation() {
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const data = {
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude
-        };
-
-        await fetch("/save-location", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data)
-        });
-
-        alert("Location Sent!");
-      },
-      () => alert("Permission Denied")
-    );
-  }
-</script>
-
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const data = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude
+          };
+          try {
+            const response = await fetch("/save-location", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (result.success) {
+              status.innerHTML = "✅ Location sent successfully!";
+            } else {
+              status.innerHTML = `❌ Error: ${result.error}`;
+            }
+          } catch (err) {
+            status.innerHTML = "❌ Failed to send location (server error)";
+          }
+        },
+        (error) => {
+          status.innerHTML = "❌ Permission denied or location error";
+        }
+      );
+    }
+  </script>
 </body>
 </html>
