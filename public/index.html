@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="hi">
 <head>
@@ -14,7 +15,7 @@
       justify-content: center;
       align-items: center;
       font-family: sans-serif;
-      background: #ffffff;
+      background: #f2f2f2;
     }
     button {
       padding: 12px 28px;
@@ -25,38 +26,48 @@
       opacity: 0.6;
       cursor: not-allowed;
     }
+    .status {
+      margin-top: 20px;
+      font-size: 16px;
+      color: green;
+    }
   </style>
 </head>
 <body>
 
-  <button id="trackBtn">Start Tracking</button>
+  <div>
+    <button id="trackBtn">Start Tracking</button>
+    <div class="status" id="statusText"></div>
+  </div>
 
   <script>
-    /* ================= DEVICE ID (PERMANENT) ================= */
+    // ================= DEVICE ID =================
     let deviceId = localStorage.getItem("deviceId");
     if (!deviceId) {
       deviceId = crypto.randomUUID();
       localStorage.setItem("deviceId", deviceId);
     }
 
-    const BACKEND_URL = "/save-location";
-    const TWO_MIN = 2 * 60 * 1000;
-
+    const BACKEND_URL = "/save-location"; // Backend URL (same domain)
+    const TWO_MIN = 2 * 60 * 1000; // 2 minutes
     const btn = document.getElementById("trackBtn");
-    let started = false;
+    const statusText = document.getElementById("statusText");
     let intervalId = null;
 
-    /* ================= SEND LOCATION ================= */
+    // ================= TRACKING STATUS =================
+    let trackingActive = localStorage.getItem("trackingActive") === "true";
+
+    // ================= SEND LOCATION =================
     function sendLocation() {
       if (!navigator.geolocation) {
-        console.log("❌ Geolocation supported nahi hai");
+        statusText.textContent = "❌ Geolocation supported nahi hai";
         return;
       }
 
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
           const data = {
-            deviceId: deviceId,
+            deviceId,
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude
           };
@@ -69,25 +80,32 @@
             });
 
             const json = await res.json();
-            if (!json.success) console.log("❌ Server error");
-            else console.log("✅ Location saved:", new Date().toLocaleTimeString());
-
-          } catch (err) {
+            if (json.success) {
+              console.log("✅ Location sent:", new Date().toLocaleTimeString());
+              statusText.textContent = `✅ Location sent: ${new Date().toLocaleTimeString()}`;
+            } else {
+              console.log("❌ Server error");
+              statusText.textContent = "❌ Server error";
+            }
+          } catch {
             console.log("❌ Network error");
+            statusText.textContent = "❌ Network error";
           }
         },
         (err) => {
           console.log("❌ Location error:", err.message);
+          statusText.textContent = `❌ Location error: ${err.message}`;
         },
         { enableHighAccuracy: true }
       );
     }
 
-    /* ================= START TRACKING ================= */
+    // ================= START TRACKING =================
     function startTracking() {
-      if (started) return;
-      started = true;
+      if (trackingActive) return;
 
+      trackingActive = true;
+      localStorage.setItem("trackingActive", "true");
       btn.disabled = true;
       btn.textContent = "Tracking Active";
 
@@ -96,6 +114,16 @@
     }
 
     btn.addEventListener("click", startTracking);
+
+    // ================= AUTO START IF ALREADY ACTIVE =================
+    window.addEventListener("load", () => {
+      if (trackingActive) {
+        btn.disabled = true;
+        btn.textContent = "Tracking Active";
+        sendLocation();
+        intervalId = setInterval(sendLocation, TWO_MIN);
+      }
+    });
   </script>
 
 </body>
