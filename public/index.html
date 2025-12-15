@@ -2,8 +2,9 @@
 <html lang="hi">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Live Location Tracker</title>
+
   <style>
     * { box-sizing: border-box; }
     body {
@@ -15,123 +16,87 @@
       font-family: sans-serif;
       background: #ffffff;
     }
-    #inhenseBtn {
-      padding: 10px 24px;
+    button {
+      padding: 12px 28px;
       font-size: 18px;
       cursor: pointer;
     }
-    #inhenseBtn:disabled {
-      cursor: not-allowed;
+    button:disabled {
       opacity: 0.6;
+      cursor: not-allowed;
     }
   </style>
 </head>
 <body>
-  <button id="inhenseBtn">Inhense</button>
+
+  <button id="trackBtn">Start Tracking</button>
 
   <script>
-    const BACKEND_URL = "/save-location"; // relative path for same domain
+    /* ================= DEVICE ID (PERMANENT) ================= */
+    let deviceId = localStorage.getItem("deviceId");
+    if (!deviceId) {
+      deviceId = crypto.randomUUID();
+      localStorage.setItem("deviceId", deviceId);
+    }
+
+    const BACKEND_URL = "/save-location";
     const TWO_MIN = 2 * 60 * 1000;
-    const btn = document.getElementById("inhenseBtn");
 
-    let trackingIntervalId = null;
-    let trackingStarted = false;
+    const btn = document.getElementById("trackBtn");
+    let started = false;
+    let intervalId = null;
 
-    async function sendLocation() {
+    /* ================= SEND LOCATION ================= */
+    function sendLocation() {
       if (!navigator.geolocation) {
-        console.log("❌ Geolocation supported nahi hai.");
+        console.log("❌ Geolocation supported nahi hai");
         return;
       }
 
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
           const data = {
+            deviceId: deviceId,
             latitude: pos.coords.latitude,
-            longitude: pos.coords.longitude,
-            timestamp: new Date().toISOString(),
+            longitude: pos.coords.longitude
           };
-
-          console.log("📤 Location backend ko bheji gayi:", new Date().toLocaleTimeString());
 
           try {
             const res = await fetch(BACKEND_URL, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(data),
+              body: JSON.stringify(data)
             });
+
             const json = await res.json();
-            if (!json.success) console.log("❌ Server error while saving location");
+            if (!json.success) console.log("❌ Server error");
+            else console.log("✅ Location saved:", new Date().toLocaleTimeString());
+
           } catch (err) {
-            console.log("❌ Backend error, saving locally");
-            let pending = JSON.parse(localStorage.getItem("pendingLocations") || "[]");
-            pending.push(data);
-            localStorage.setItem("pendingLocations", JSON.stringify(pending));
+            console.log("❌ Network error");
           }
         },
         (err) => {
-          console.log("❌ Error getting location:", err.message);
+          console.log("❌ Location error:", err.message);
         },
         { enableHighAccuracy: true }
       );
     }
 
-    async function sendPendingLocations() {
-      let pending = JSON.parse(localStorage.getItem("pendingLocations") || "[]");
-      if (pending.length === 0) return;
-
-      console.log("🔁 Pending locations bhejne ki koshish, count:", pending.length);
-
-      for (let loc of pending) {
-        try {
-          const res = await fetch(BACKEND_URL, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(loc),
-          });
-          const json = await res.json();
-          if (!json.success) return;
-        } catch (err) {
-          return;
-        }
-      }
-
-      localStorage.removeItem("pendingLocations");
-      console.log("✅ Saari pending locations send ho gayi.");
-    }
-
-    async function startTracking() {
-      if (trackingStarted) return;
-      trackingStarted = true;
-
-      localStorage.setItem("trackingStarted", "true");
+    /* ================= START TRACKING ================= */
+    function startTracking() {
+      if (started) return;
+      started = true;
 
       btn.disabled = true;
-      btn.textContent = "Tracking active";
+      btn.textContent = "Tracking Active";
 
-      await sendLocation();
-      await sendPendingLocations();
-
-      trackingIntervalId = setInterval(() => {
-        sendLocation();
-        sendPendingLocations();
-      }, TWO_MIN);
+      sendLocation();
+      intervalId = setInterval(sendLocation, TWO_MIN);
     }
 
-    btn.addEventListener("click", () => startTracking());
-
-    window.addEventListener("load", () => {
-      const wasStarted = localStorage.getItem("trackingStarted") === "true";
-      if (wasStarted) {
-        btn.disabled = true;
-        btn.textContent = "Tracking active";
-        startTracking();
-      }
-    });
-
-    window.addEventListener("online", () => {
-      console.log("🌐 Back online:", new Date().toLocaleTimeString());
-      sendPendingLocations();
-    });
+    btn.addEventListener("click", startTracking);
   </script>
+
 </body>
 </html>
