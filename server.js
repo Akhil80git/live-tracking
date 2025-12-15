@@ -8,8 +8,16 @@ dotenv.config();
 
 const app = express();
 
-/* ================= MIDDLEWARES ================= */
-app.use(cors());
+/* ================= BASIC SETTINGS ================= */
+app.set("trust proxy", 1);
+
+/* ================= MIDDLEWARE ================= */
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST"],
+  allowedHeaders: ["Content-Type"]
+}));
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -24,7 +32,7 @@ const LocationSchema = new mongoose.Schema({
   identifier: {
     type: String,
     required: true,
-    unique: true
+    index: true
   },
   latitude: Number,
   longitude: Number,
@@ -38,8 +46,8 @@ app.post("/save-location", async (req, res) => {
   try {
     const { deviceId, latitude, longitude } = req.body;
 
-    if (!deviceId) {
-      return res.status(400).json({ success: false, message: "Device ID missing" });
+    if (!deviceId || latitude == null || longitude == null) {
+      return res.status(400).json({ success: false, message: "Invalid data" });
     }
 
     const indiaTime = new Date().toLocaleString("en-IN", {
@@ -66,7 +74,7 @@ app.post("/save-location", async (req, res) => {
   }
 });
 
-/* ================= FRONTEND SERVE ================= */
+/* ================= FRONTEND ROUTE ================= */
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public/index.html"));
 });
@@ -74,5 +82,5 @@ app.get("/", (req, res) => {
 /* ================= SERVER START ================= */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
