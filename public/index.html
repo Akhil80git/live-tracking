@@ -1,13 +1,11 @@
-
 <!DOCTYPE html>
 <html lang="hi">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Live Location Tracker</title>
+  <title>Start Location Tracking</title>
 
   <style>
-    * { box-sizing: border-box; }
     body {
       margin: 0;
       height: 100vh;
@@ -18,113 +16,74 @@
       background: #f2f2f2;
     }
     button {
-      padding: 12px 28px;
+      padding: 14px 30px;
       font-size: 18px;
-      cursor: pointer;
     }
     button:disabled {
       opacity: 0.6;
-      cursor: not-allowed;
-    }
-    .status {
-      margin-top: 20px;
-      font-size: 16px;
-      color: green;
     }
   </style>
 </head>
 <body>
 
-  <div>
-    <button id="trackBtn">Start Tracking</button>
-    <div class="status" id="statusText"></div>
-  </div>
+<button id="trackBtn">Start Location</button>
 
-  <script>
-    // ================= DEVICE ID =================
-    let deviceId = localStorage.getItem("deviceId");
-    if (!deviceId) {
-      deviceId = crypto.randomUUID();
-      localStorage.setItem("deviceId", deviceId);
-    }
+<script>
+/* ================= DEVICE ID ================= */
+let deviceId = localStorage.getItem("deviceId");
+if (!deviceId) {
+  deviceId = crypto.randomUUID();
+  localStorage.setItem("deviceId", deviceId);
+}
 
-    const BACKEND_URL = "/save-location"; // Backend URL (same domain)
-    const TWO_MIN = 2 * 60 * 1000; // 2 minutes
-    const btn = document.getElementById("trackBtn");
-    const statusText = document.getElementById("statusText");
-    let intervalId = null;
+const BACKEND_URL = "https://YOUR_DOMAIN/save-location";
+const btn = document.getElementById("trackBtn");
 
-    // ================= TRACKING STATUS =================
-    let trackingActive = localStorage.getItem("trackingActive") === "true";
+let watchId = null;
 
-    // ================= SEND LOCATION =================
-    function sendLocation() {
-      if (!navigator.geolocation) {
-        statusText.textContent = "❌ Geolocation supported nahi hai";
-        return;
-      }
+/* ================= START ON CLICK ================= */
+btn.addEventListener("click", () => {
 
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          const data = {
+  if (!navigator.geolocation) {
+    alert("Geolocation supported nahi hai");
+    return;
+  }
+
+  if (watchId !== null) return;
+
+  btn.textContent = "Tracking Active";
+  btn.disabled = true;
+
+  watchId = navigator.geolocation.watchPosition(
+    async (pos) => {
+      try {
+        await fetch(BACKEND_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
             deviceId,
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude
-          };
-
-          try {
-            const res = await fetch(BACKEND_URL, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(data)
-            });
-
-            const json = await res.json();
-            if (json.success) {
-              console.log("✅ Location sent:", new Date().toLocaleTimeString());
-              statusText.textContent = `✅ Location sent: ${new Date().toLocaleTimeString()}`;
-            } else {
-              console.log("❌ Server error");
-              statusText.textContent = "❌ Server error";
-            }
-          } catch {
-            console.log("❌ Network error");
-            statusText.textContent = "❌ Network error";
-          }
-        },
-        (err) => {
-          console.log("❌ Location error:", err.message);
-          statusText.textContent = `❌ Location error: ${err.message}`;
-        },
-        { enableHighAccuracy: true }
-      );
-    }
-
-    // ================= START TRACKING =================
-    function startTracking() {
-      if (trackingActive) return;
-
-      trackingActive = true;
-      localStorage.setItem("trackingActive", "true");
-      btn.disabled = true;
-      btn.textContent = "Tracking Active";
-
-      sendLocation();
-      intervalId = setInterval(sendLocation, TWO_MIN);
-    }
-
-    btn.addEventListener("click", startTracking);
-
-    // ================= AUTO START IF ALREADY ACTIVE =================
-    window.addEventListener("load", () => {
-      if (trackingActive) {
-        btn.disabled = true;
-        btn.textContent = "Tracking Active";
-        sendLocation();
-        intervalId = setInterval(sendLocation, TWO_MIN);
+          })
+        });
+        console.log("📍 Location saved");
+      } catch (e) {
+        console.log("❌ Network error");
       }
-    });
-  </script>
+    },
+    (err) => {
+      alert("Location error: " + err.message);
+      btn.disabled = false;
+      btn.textContent = "Start Location";
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 10000
+    }
+  );
+});
+</script>
 
 </body>
 </html>
