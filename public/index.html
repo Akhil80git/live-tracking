@@ -20,6 +20,15 @@
       padding: 12px 28px;
       font-size: 18px;
       cursor: pointer;
+      border: none;
+      background-color: #28a745;
+      color: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      transition: 0.3s;
+    }
+    button:hover:not(:disabled) {
+      background-color: #218838;
     }
     button:disabled {
       opacity: 0.6;
@@ -32,7 +41,7 @@
   <button id="trackBtn">Start Tracking</button>
 
   <script>
-    /* ================= DEVICE ID (PERMANENT) ================= */
+    /* ================= DEVICE ID ================= */
     let deviceId = localStorage.getItem("deviceId");
     if (!deviceId) {
       deviceId = crypto.randomUUID();
@@ -43,20 +52,19 @@
     const TWO_MIN = 2 * 60 * 1000;
 
     const btn = document.getElementById("trackBtn");
-    let started = false;
     let intervalId = null;
 
     /* ================= SEND LOCATION ================= */
-    function sendLocation() {
+    async function sendLocation() {
       if (!navigator.geolocation) {
-        console.log("❌ Geolocation supported nahi hai");
+        console.log("❌ Geolocation not supported");
         return;
       }
 
       navigator.geolocation.getCurrentPosition(
         async (pos) => {
           const data = {
-            deviceId: deviceId,
+            deviceId,
             latitude: pos.coords.latitude,
             longitude: pos.coords.longitude
           };
@@ -67,27 +75,19 @@
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify(data)
             });
-
             const json = await res.json();
-            if (!json.success) console.log("❌ Server error");
-            else console.log("✅ Location saved:", new Date().toLocaleTimeString());
-
+            if (json.success) console.log("📍 Location sent:", new Date().toLocaleTimeString());
           } catch (err) {
-            console.log("❌ Network error");
+            console.log("❌ Error sending location:", err);
           }
         },
-        (err) => {
-          console.log("❌ Location error:", err.message);
-        },
+        (err) => console.log("❌ Location error:", err.message),
         { enableHighAccuracy: true }
       );
     }
 
     /* ================= START TRACKING ================= */
-    function startTracking() {
-      if (started) return;
-      started = true;
-
+    function startTrackingOnce() {
       btn.disabled = true;
       btn.textContent = "Tracking Active";
 
@@ -95,7 +95,26 @@
       intervalId = setInterval(sendLocation, TWO_MIN);
     }
 
-    btn.addEventListener("click", startTracking);
+    /* ================= BUTTON CLICK ================= */
+    btn.addEventListener("click", () => {
+      if (localStorage.getItem("trackingStarted") === "true") return;
+
+      localStorage.setItem("trackingStarted", "true");
+      startTrackingOnce();
+    });
+
+    /* ================= AUTO RESUME AFTER REFRESH ================= */
+    window.addEventListener("load", () => {
+      if (localStorage.getItem("trackingStarted") === "true") {
+        startTrackingOnce();
+      }
+    });
+
+    /* ================= SEND LOCATION WHEN ONLINE ================= */
+    window.addEventListener("online", () => {
+      console.log("🌐 Back online, sending location...");
+      sendLocation();
+    });
   </script>
 
 </body>
